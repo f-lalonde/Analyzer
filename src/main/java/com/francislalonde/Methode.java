@@ -35,7 +35,7 @@ public class Methode {
 
     public void computeDC(){
         if(LOC == 0){
-            DC = 0;
+            DC = -1;
         } else {
             DC = (double)CLOC / LOC;
         }
