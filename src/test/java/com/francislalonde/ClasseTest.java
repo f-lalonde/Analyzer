@@ -6,22 +6,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ClasseTest {
 
-    private final String defaultError_NoSuchMethod = "CLASS ERROR : NO SUCH METHOD";
-
-    @Test
-    void methodNotFoundHandling(){
-        Classe classe = new Classe("ClasseTest", 0, 10, 0);
-        assertEquals(defaultError_NoSuchMethod,classe.getMethod("Non Existent Method").getName());
-    }
 
     @Test
     void Add_GetMethod(){
         Classe classe = new Classe("ClasseTest", 0, 10, 0);
 
-        assertEquals(1, classe.getClass_methods().size());
+        assertEquals(0, classe.getClass_methods().size());
         classe.addMethod("MethodTest", new Methode("MethodTest", 0, 10, 5));
 
-        assertEquals(2, classe.getClass_methods().size());
+        assertEquals(1, classe.getClass_methods().size());
         assertEquals(5, classe.getMethod("MethodTest").getCLOC());
     }
 

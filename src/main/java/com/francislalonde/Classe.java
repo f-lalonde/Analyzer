@@ -42,6 +42,5 @@ public class Classe extends Methode {
             setBC(getDC() / getWMC());
         }
     }
-
 }
 

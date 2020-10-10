@@ -29,8 +29,12 @@ import java.util.regex.Pattern;
 
 public class LOC_Analyzer {
 
+
     private final String classErrorName = "ERROR : Class could not be identified";
     private final Classe classError = new Classe(classErrorName, 0,0,0);
+
+    // Variables que l'on veut accéder dans toutes les méthodes de la classe (pour effets de bords)
+
     private final ArrayList<Classe> listClasses = new ArrayList<>();
 
     private final ArrayList<String> fileLines;
@@ -38,6 +42,17 @@ public class LOC_Analyzer {
     private int commentOutsideOfAClass = 0;
     private int LOCOutsideOfAClass = 0;
     private String currentMethod = " ";
+
+    private boolean outsideOfAClass;
+    private boolean outsideOfAMethod;
+
+    private boolean mlCommentFound;
+    private boolean javaDocfound;
+    private boolean singleCommentFound;
+
+    private int currentClassIndex;
+
+    private Methode thisMethode;
 
     // Patrons regex
 
@@ -88,135 +103,31 @@ public class LOC_Analyzer {
      */
     private void analyzer(){
 
-        boolean outsideOfAClass = true;
-        boolean outsideOfAMethod = true;
-        int currentClassIndex = 0;
-        Methode thisMethode = null;
-
-        boolean mlCommentFound = false;
-        boolean javaDocfound = false;
-        boolean singleCommentFound;
+        outsideOfAClass = true;
+        outsideOfAMethod = true;
+        currentClassIndex = 0;
+        mlCommentFound = false;
+        javaDocfound = false;
 
         for(int i = 0; i<fileLines.size(); ++i) {
 
-            singleCommentFound = false;
-
-            /* Stratégie générale : on vérifie s'il y a un type de commentaire dans la ligne, on enlève tout
-               ce qu'il contient, puis on vérifie ce qu'il reste. */
-
             String line = fileLines.get(i);
+
+            // On empêche la détection dans les strings, en s'assurant de ne pas capter une mauvaise paire de " ".
+            // Ex : fin de commentaire " multi-ligne */ String oops = "on perd tout ceci";
+            line = line.replaceAll("\\R", "");
+            line = line.replaceAll("\".*\\*/", "SafeGuarded! */");
+            line = line.replaceAll("\".*\"", "\"replacedString\" ");
+
+            line = commentHandling(line);
 
             // on ignore les lignes vides
             if(line.isBlank()){
                 continue;
             }
 
-            // On empêche la détection dans les strings, en s'assurant de ne pas capter une mauvaise paire de " ".
-            // Ex : fin de commentaire " multi-ligne */ String oops = "on perd tout ceci";
-            line = line.replaceAll("\".*\\*/", "SafeGuarded! */");
-            line = line.replaceAll("\".*\"", "\"replacedString\" ");
+            classAndMethodHandling(line, i);
 
-            /* On vérifie d'abord si on est à l'intérieur d'un commentaire multi-ligne.
-               Si oui, on doit ajouter une ligne de commentaire, et vérifier si il y a la fin du commentaire sur cette
-               ligne-ci. Si oui, on doit vérifier pour la présence de code. Sinon, on passe à la ligne suivante.
-             */
-            if(mlCommentFound || javaDocfound){
-
-                if(line.contains("*/")){
-                    // on gère d'abord la possibilité d'avoir ouvert et fermé un nouveau commentaire multi-ligne pour
-                    // éviter une détection trop gourmande.
-                    line = line.replaceAll("/\\*.*\\*/", "");
-
-                    // puis on enlève la partie commentée et on continue l'analyse sur ce qu'il reste.
-                    line = line.replaceAll(".*\\*/", "");
-                    if(javaDocfound){
-                        javadocLines++;
-                    } else {
-                        singleCommentFound = true;
-                    }
-
-                } else {
-                    if (outsideOfAClass || outsideOfAMethod) {
-                        if (javaDocfound) {
-                            javadocLines++;
-                        } else if(outsideOfAClass){
-                            commentOutsideOfAClass++;
-                        }
-                    } else {
-                        listClasses.get(currentClassIndex).incrementCLOC();
-                        thisMethode.incrementCLOC();
-
-                    }
-                    continue;
-                }
-            }
-
-            // Détection des commentaires
-            if (findSingleComment(line)) {
-                singleCommentFound = true;
-
-                // on enlève la partie commentée et on continue l'analyse sur ce qu'il reste.
-                line = line.replaceAll("//.*", "");
-            }
-
-            // tableau de 3 booléens, représentant : 0 - singleCommentFound, 1 - mlCommentFound, 2 - javaDocfound
-            boolean[] values = findMultiLineComment(line);
-
-            // On enlève les commentaires.
-            if(values[0]){
-                line = line.replaceAll("/\\*.*\\*/", "");
-            } else if(values[1] || values[2]){
-                line = line.replaceAll("/\\*.*", "");
-            }
-
-            singleCommentFound = singleCommentFound || values[0];
-            mlCommentFound = values[1];
-            javaDocfound = values[2];
-
-            // Détection des classes et des méthodes
-
-            // Gère les cas où la déclaration est séparée sur deux lignes. Pour l'instant, on juge que sur trois lignes
-            // serait exagéré... mais qui sait, peut-être?
-            String checkIfOnMultipleLines = line;
-            if(fileLines.size() > i +3){
-                checkIfOnMultipleLines = checkIfOnMultipleLines.concat(fileLines.get(i+1)).concat(fileLines.get(i+2)).concat(fileLines.get(i+3)).replaceAll("\\R\\t", "");
-            }
-
-            Matcher multiLineClassCheck = multiLineClassDeclarationCheck.matcher(line);
-
-            if (classMatcher(line, i) || (multiLineClassCheck.find() && classMatcher(checkIfOnMultipleLines, i))) {    //  <--- il y a des effets de bords ici.
-                outsideOfAClass = false;
-                currentClassIndex = listClasses.size() - 1;
-
-            } else if (!listClasses.isEmpty() && i > listClasses.get(currentClassIndex).getEnd()) {
-                outsideOfAClass = true;
-            }
-
-            Matcher partialMethodMatcher = methodPartialMatch.matcher(line);
-
-            if (methodMatcher(line, i) || (partialMethodMatcher.find() && methodMatcher(checkIfOnMultipleLines, i))) {   //  <--- il y a des effets de bords ici.
-                outsideOfAMethod = false;
-                thisMethode = listClasses.get(currentClassIndex).getMethod(currentMethod);
-            } else if (thisMethode != null && i > thisMethode.getEnd()) {
-                outsideOfAMethod = true;
-            }
-
-            // si on a trouvé des commentaires, CLOC++
-            if(singleCommentFound || mlCommentFound || javaDocfound) {
-                if (outsideOfAClass) {
-                    if (javaDocfound) {
-                        javadocLines++;
-                    } else {
-                        commentOutsideOfAClass++;
-                    }
-                } else {
-                    listClasses.get(currentClassIndex).incrementCLOC();
-                    if (!outsideOfAMethod) {
-                        assert thisMethode != null : "On a détecté que l'on est dans une méthode, mais aucune méthode n'a été chargée.";
-                        thisMethode.incrementCLOC();
-                    }
-                }
-            }
             // si après tous les retraits il reste encore des charactères non vide, LOC++
             if(!line.isBlank()){
                 if(outsideOfAClass){
@@ -224,7 +135,7 @@ public class LOC_Analyzer {
                 } else {
                     listClasses.get(currentClassIndex).incrementLOC();
                     if (!outsideOfAMethod) {
-                        assert thisMethode != null : "On a détecté que l'on est dans une méthode, mais aucune méthode n'a été chargée.";
+
                         thisMethode.incrementLOC();
 
                         // On en profite au passage pour vérifier la présence d'un noeud prédicat :
@@ -263,6 +174,136 @@ public class LOC_Analyzer {
     }
 
     /**
+     *
+     * @return true if still inside a multi-line comment / javadoc, false in any other case.
+     */
+    private String commentHandling(String line){
+        /*  On vérifie d'abord si on est à l'intérieur d'un commentaire multi-ligne.
+            Si oui, on doit ajouter une ligne de commentaire, et vérifier si il y a la fin du commentaire sur cette
+            ligne-ci. Si oui, on doit vérifier pour la présence de code. Sinon, on passe à la ligne suivante.
+        */
+
+        singleCommentFound = false;
+        if(mlCommentFound || javaDocfound){
+
+            if(line.contains("*/")){
+                // on gère d'abord la possibilité d'avoir ouvert et fermé un nouveau commentaire multi-ligne pour
+                // éviter une détection trop gourmande.
+                line = line.replaceAll("/\\*.*\\*/", "");
+
+                // puis on enlève la partie commentée et on continue l'analyse sur ce qu'il reste.
+                line = line.replaceAll(".*\\*/", "");
+                if(javaDocfound){
+                    javaDocfound = false;
+                    javadocLines++;
+                } else {
+                    mlCommentFound = false;
+                    singleCommentFound = true;
+                }
+
+            } else {
+
+                if (javaDocfound) {
+                    javadocLines++;
+
+                } else if(outsideOfAClass){
+                    commentOutsideOfAClass++;
+
+                } else {
+                    listClasses.get(listClasses.size() - 1).incrementCLOC();
+                    thisMethode.incrementCLOC();
+
+                }
+                return line;
+            }
+        }
+
+        // Détection et élimination des commentaires
+
+        if (findSingleComment(line)) {
+            singleCommentFound = true;
+            line = line.replaceAll("//.*", "");
+        }
+
+        findMultiLineComment(line);
+
+        if(singleCommentFound){
+            line = line.replaceAll("/\\*.*\\*/", "");
+        } else if(mlCommentFound || javaDocfound){
+            line = line.replaceAll("/\\*.*", "");
+        }
+
+        return line;
+    }
+
+    private boolean findSingleComment(String line) {
+        // on vérifie que "//" n'est pas imbriqué dans un commentaire /* ... */ ou /* ... (sinon il sera compté deux fois)
+        return line.contains("//") &&
+                line.replaceAll(patternMultiLineCommentonOneLine.pattern(), "").
+                        replaceAll("/\\*", "").contains("//");
+    }
+
+    private void findMultiLineComment(String line){
+        Matcher mlCommentOneLine = patternMultiLineCommentonOneLine.matcher(line);
+
+        if(line.contains("/*")){
+            if(mlCommentOneLine.find()){
+                singleCommentFound = true;
+            } else {
+                if(line.contains("/**")){
+                    javaDocfound = true;
+                } else {
+                    mlCommentFound = true;
+                }
+            }
+        }
+    }
+
+    private void classAndMethodHandling(String line, int currentIndex){
+        // Gère les cas où la déclaration est séparée sur deux lignes. Pour l'instant, on juge que sur plus de
+        // quatre lignes, ce serait exagéré... mais qui sait?
+        String checkIfOnMultipleLines = line;
+        if(fileLines.size() > currentIndex +3){
+            checkIfOnMultipleLines = checkIfOnMultipleLines.concat(fileLines.get(currentIndex+1)).concat(fileLines.get(currentIndex+2)).concat(fileLines.get(currentIndex+3)).replaceAll("\\R\\t", "");
+        }
+
+        Matcher multiLineClassCheck = multiLineClassDeclarationCheck.matcher(line);
+
+        if (classMatcher(line, currentIndex) || (multiLineClassCheck.find() && classMatcher(checkIfOnMultipleLines, currentIndex))) {    //  <--- il y a des effets de bords ici.
+            outsideOfAClass = false;
+
+
+        } else if (!listClasses.isEmpty() && currentIndex > listClasses.get(currentClassIndex).getEnd()) {
+            outsideOfAClass = true;
+        }
+
+        Matcher partialMethodMatcher = methodPartialMatch.matcher(line);
+
+        if (methodMatcher(line, currentIndex) || (partialMethodMatcher.find() && methodMatcher(checkIfOnMultipleLines, currentIndex))) {   //  <--- il y a des effets de bords ici.
+            outsideOfAMethod = false;
+            thisMethode = listClasses.get(currentClassIndex).getMethod(currentMethod);
+        } else if (thisMethode != null && currentIndex > thisMethode.getEnd()) {
+            outsideOfAMethod = true;
+        }
+
+        // si on a trouvé des commentaires, CLOC++
+        if(singleCommentFound || mlCommentFound || javaDocfound) {
+            if (outsideOfAClass) {
+                if (javaDocfound) {
+                    javadocLines++;
+                } else {
+                    commentOutsideOfAClass++;
+                }
+            } else {
+                listClasses.get(currentClassIndex).incrementCLOC();
+                if (!outsideOfAMethod) {
+                    thisMethode.incrementCLOC();
+                }
+            }
+        }
+    }
+
+    /**
      * Vérifie si la ligne est une déclaration de classe. Si oui, on crée un instance de com.francislalonde.Classe et on l'ajoute au
      * hashmap listClasses. Sinon, il ne se passe rien.
      * Agit par effet de bord.
@@ -279,6 +320,7 @@ public class LOC_Analyzer {
 
             if(javadocLines > 0){
                 listClasses.add(new Classe(className, currentLine, classEnd, javadocLines));
+                currentClassIndex = listClasses.size() - 1;
                 javadocLines = 0; // on remet le compteur à 0 puisque javadocs assignés.
 
             } else {
@@ -331,11 +373,7 @@ public class LOC_Analyzer {
             }
             if(javadocLines > 0){
                 currentClass.addMethod(currentMethod, new Methode(currentMethod, currentLine, methodEnd, javadocLines));
-                // on remet le compteur à 0 en assignant aussi les javadocs à la classe de la méthode.
-                while(javadocLines > 0){
-                    currentClass.incrementCLOC();
-                    javadocLines--;
-                }
+                javadocLines = 0;
             } else {
                 try{
                     listClasses.get(listClasses.size() - 1).addMethod(currentMethod, new Methode(currentMethod, currentLine, methodEnd, 0));
@@ -346,30 +384,6 @@ public class LOC_Analyzer {
             return true;
         }
         return false;
-    }
-
-    private boolean findSingleComment(String line) {
-        // on vérifie que "//" n'est pas imbriqué dans un commentaire /* ... */ ou /* ... (sinon il sera compté deux fois)
-        return line.contains("//") &&
-                line.replaceAll(patternMultiLineCommentonOneLine.pattern(), "").
-                        replaceAll("/\\*", "").contains("//");
-    }
-
-    private boolean[] findMultiLineComment(String line){
-        Matcher mlCommentOneLine = patternMultiLineCommentonOneLine.matcher(line);
-        boolean[] returnedValues = {false, false, false};
-        if(line.contains("/*")){
-            if(mlCommentOneLine.find()){
-                returnedValues[0] = true;       // singleCommentFound
-            } else {
-                if(line.contains("/**")){
-                    returnedValues[2] = true;   // javaDocfound
-                } else {
-                    returnedValues[1] = true;   // mlCommentFound
-                }
-            }
-        }
-        return returnedValues;
     }
 
     public ArrayList<Classe> getListClasses() {

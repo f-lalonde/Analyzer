@@ -57,7 +57,7 @@ public class FindBalancedSymbol {
                     count--;
                 }
             }
-            if(count == 0 && started){
+            if(count <= 0 && started){
                 return i;
             }
         }
