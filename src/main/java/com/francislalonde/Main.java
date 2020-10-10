@@ -1,3 +1,10 @@
+/*
+TP1 - Métriques
+IFT-3913
+Francis Lalonde
+Charlotte de Lanauze
+ */
+
 package com.francislalonde;
 
 import java.io.File;
