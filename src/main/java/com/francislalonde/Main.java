@@ -7,7 +7,7 @@ import java.util.ArrayList;
 //todo : Gérer les classes imbriquées.
 //todo : vérifier que les commentaires sont bien assignés
 //todo : fais des tests dammit!
-
+//todo : @Override et autres ( regex : @.*/b) En théorie, devrait être assigné à la méthode qui le suit.
 public class Main {
     public static void main(String[] args) {
 

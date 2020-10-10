@@ -22,7 +22,7 @@ class ClasseTest {
         classe.addMethod("MethodTest", new Methode("MethodTest", 0, 10, 5));
 
         assertEquals(2, classe.getClass_methods().size());
-        assertEquals(5,classe.getMethod("MethodTest").getCLOC());
+        assertEquals(5, classe.getMethod("MethodTest").getCLOC());
     }
 
     @Test

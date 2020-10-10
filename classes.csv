@@ -1,9 +1,12 @@
 chemin, class, classe_LOC, classe_CLOC, classe_DC, WMC, classe_BC
-C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\main\java\com\francislalonde\AddComments.java, AddComments, 23, 0, 0.0, 6, 0.0
 C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\main\java\com\francislalonde\Classe.java, Classe, 35, 0, 0.0, 9, 0.0
 C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\main\java\com\francislalonde\FichierCSV.java, FichierCSV, 44, 1, 0.022727272727272728, 5, 0.004545454545454545
+C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\main\java\com\francislalonde\FindBalancedSymbol.java, FindBalancedSymbol, 38, 3, 0.07894736842105263, 0, -1.0
 C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\main\java\com\francislalonde\FindFiles.java, FindFiles, 27, 8, 0.2962962962962963, 5, 0.059259259259259255
 C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\main\java\com\francislalonde\LinesExtractor.java, LinesExtractor, 15, 6, 0.4, 2, 0.2
-C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\main\java\com\francislalonde\LOC_Analyzer.java, LOC_Analyzer, 275, 87, 0.31636363636363635, 54, 0.005858585858585858
-C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\main\java\com\francislalonde\Main.java, Main, 18, 0, 0.0, 2, 0.0
+C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\main\java\com\francislalonde\LOC_Analyzer.java, LOC_Analyzer, 248, 80, 0.3225806451612903, 47, 0.0068634179821551134
+C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\main\java\com\francislalonde\Main.java, Main, 18, 4, 0.2222222222222222, 2, 0.1111111111111111
 C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\main\java\com\francislalonde\Methode.java, Methode, 76, 0, 0.0, 18, 0.0
+C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\test\java\com\francislalonde\ClasseTest.java, ClasseTest, 40, 3, 0.075, 5, 0.015
+C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\test\java\com\francislalonde\LOC_AnalyzerTest.java, LOC_AnalyzerTest, 15, 1, 0.06666666666666667, 2, 0.03333333333333333
+C:\Users\Francis\Documents\IntelliJ Projects\Analyzer\src\test\java\com\francislalonde\MethodeTest.java, MethodeTest, 37, 4, 0.10810810810810811, 4, 0.02702702702702703

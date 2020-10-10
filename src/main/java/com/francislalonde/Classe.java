@@ -7,12 +7,11 @@ public class Classe extends Methode {
     private int WMC;
 
     private final HashMap<String, Methode> class_methods= new HashMap<>();
-    private final String defaultError_NoSuchMethod = "CLASS ERROR : NO SUCH METHOD";
 
     public Classe(String name, int start, int end, int javadocLines){
         super(name, start, end, javadocLines);
         this.WMC = 0;
-        class_methods.put(defaultError_NoSuchMethod, new Methode(defaultError_NoSuchMethod, 0,0,0));
+
     }
 
     public void addMethod(String methodName, Methode methode){
@@ -24,18 +23,11 @@ public class Classe extends Methode {
     }
 
     public Methode getMethod(String name) {
-        if(class_methods.containsKey(name)){
-            return class_methods.get(name);
-        } else {
-            return class_methods.get(defaultError_NoSuchMethod);
-        }
-
+        return class_methods.get(name);
     }
 
     public void computeWMC(){
-        class_methods.forEach((name, method) ->{
-            WMC = WMC + method.getCC();
-        });
+        class_methods.forEach((name, method) -> WMC = WMC + method.getCC());
     }
 
     public int getWMC() {

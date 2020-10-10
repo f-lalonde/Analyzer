@@ -20,9 +20,17 @@ import java.util.regex.Pattern;
  *              "Il serait bien sur interessant de voir si une telle hypothèse revele des cas plus interessants dans
  *               JFreechart. Peut-être vous auriez une option de configuration qui l'active et le désactive, et puis
  *               vous comparez?"  todo : <-- faire ça.
- */
+ *
+ *   HYPOTHÈSE 3 :  Les lignes qui se trouvent à l'extérieur des classes (commentaires, imports, etc) appartiennent à
+ *                  toutes les classes se trouvant dans le fichier, à l'exception de la javaDoc.
+ *
+ *
+ * */
 
 public class LOC_Analyzer {
+
+    private final String classErrorName = "ERROR : Class could not be identified";
+    private final Classe classError = new Classe(classErrorName, 0,0,0);
     private final ArrayList<Classe> listClasses = new ArrayList<>();
 
     private final ArrayList<String> fileLines;
@@ -33,42 +41,29 @@ public class LOC_Analyzer {
 
     // Patrons regex
 
-    private final Pattern classPattern = Pattern.compile(
-            "((\\b(public|protected|default|private)\\b)?\\s+)?" + "(\\babstract\\b\\s+)?" + "(\\b(class|interface|enum)\\b)\\s+[a-zA-Z_$][a-zA-Z0-9_$]*(\\s*<.*>)?" +
-                    "(\\s+(extends|implements)\\s+[a-zA-Z_$][a-zA-Z0-9_$.]*(\\s*<.*>)?\\s*(,\\s*[a-zA-Z_$][a-zA-Z0-9_$]*(\\s*<.*>)?)*?)*?\\s*\\{");
-    // à partir d'ici il faut compter les {} pour arriver à quelque chose d'équilibré.
-
-    // ce Pattern est dégueulasse, je sais. Il y a surement moyen de faire mieux.
-    // J'ai tenté de le rendre "lisible", autant que possible...
-    private final Pattern methodPattern = Pattern.compile(
-            "^(?!\\s*(catch|while|if|for|switch))\\s*" +
-                    "(\\b(public|protected|default|private)\\b\\s+)?" +
-                    "(static\\s+)?" +
-                    "([a-zA-Z_$][a-zA-Z0-9_$]*\\s*" +
-                    "(<\\s*([a-zA-Z_$]+[a-zA-Z0-9_$]*\\s*,\\s*)*[a-zA-Z_$]+[a-zA-Z0-9_$]*\\s*>\\s+)?" +
-                    "((\\[])*\\s+)?)?" +
-                    "(?<methodName>[a-zA-Z_$][a-zA-Z0-9_$]*)\\s*" +
-                    "\\((?<signature>(\\s*(?<type1>[a-zA-Z_$][a-zA-Z0-9_$]*" +
-                    "(<\\s*([a-zA-Z_$]+[a-zA-Z0-9_$]*\\s*,\\s*)*[a-zA-Z_$]+[a-zA-Z0-9_$]*\\s*>\\s+)?" +
-                    "(\\[])*)\\s+" +
-                    "[a-zA-Z_$][a-zA-Z0-9_$]*\\s*,)*\\s*" +
-                    "((?<type2>[a-zA-Z_$][a-zA-Z0-9_$]*" +
-                    "(<\\s*([a-zA-Z_$]+[a-zA-Z0-9_$]*\\s*,\\s*)*[a-zA-Z_$]+[a-zA-Z0-9_$]*\\s*>\\s+)?" +
-                    "((\\[])*\\s+)?)" +
-                    "[a-zA-Z_$][a-zA-Z0-9_$]*))?\\s*\\)" +
-                    "(\\s+throws\\s+[a-zA-Z_$][a-zA-Z0-9_$]*)?\\s*\\{");
-    // à partir d'ici, il faut compter les {} pour arriver à quelque chose d'équilibré.
-
-    private final Pattern methodPartialMatch = Pattern.compile("^(?!\\s*(catch|while|if|for|switch))\\s*" +
-            "((public|protected|default|private)\\s+)?" +
-            "(static\\s+)?" +
-            "([a-zA-Z_$][a-zA-Z0-9_$]*\\s*" +
-            "(<\\s*([a-zA-Z_$]+[a-zA-Z0-9_$]*\\s*,\\s*)*[a-zA-Z_$]+[a-zA-Z0-9_$]*\\s*>\\s+)?" +
-            "((\\[])*\\s+)?)?" +
+    private static final Pattern methodPattern = Pattern.compile(
+            "\\b(?!(catch\\s*\\(|while\\s*\\(|if\\s*\\(|for\\s*\\(|switch\\s*\\())\\b\\s*" +
             "(?<methodName>[a-zA-Z_$][a-zA-Z0-9_$]*)\\s*" +
-            "\\(");
+            "\\((?<signature>(\\s*(?<type1>[a-zA-Z_$][a-zA-Z0-9_$]*" +
+            "(<.*>\\s+)?" + // on accepte tout dans <> pour simplifier le regex
+            "(\\[])*)\\s+" +
+            "\\b[a-zA-Z_$][a-zA-Z0-9_$]*\\s*,)*\\s*" +
+            "((?<type2>\\b[a-zA-Z_$][a-zA-Z0-9_$]*" +
+            "(<.*>\\s+)?" + "((\\[])*\\s+)?)" +
+            "\\b[a-zA-Z_$][a-zA-Z0-9_$]*))?\\s*\\)" +
+            "(\\s+throws\\s+[a-zA-Z_$][a-zA-Z0-9_$]*)?\\s*\\{");
 
-    private final Pattern methodNameExtracter = Pattern.compile("(?<methodName>[a-zA-Z_$][a-zA-Z0-9_$]*)\\s*\\(\\s*([a-zA-Z_$][a-zA-Z0-9_$\\s,<>\\[\\]]*)?\\)");
+    private static final Pattern classPattern = Pattern.compile(
+            "\\b(class|interface|enum)\\b\\s+" +
+            "(?<className>[a-zA-Z_$][a-zA-Z0-9_$]*)(\\s*<.*>)?" +
+            "(\\s+(extends|implements)\\s+[a-zA-Z_$][a-zA-Z0-9_$.]*(\\s*<.*>)?\\s*" +
+            "(,\\s*[a-zA-Z_$][a-zA-Z0-9_$]*(\\s*<.*>)?)*?)*?\\s*\\{");
+
+    private static final Pattern multiLineClassDeclarationCheck = Pattern.compile("\\b(class|interface|enum)\\b");
+
+    private final Pattern methodPartialMatch = Pattern.compile(
+            "\\b(?!(catch\\s*\\(|while\\s*\\(|if\\s*\\(|for\\s*\\(|switch\\s*\\(|new\\s+.*))\\b\\s*" +
+            "(?<methodName>\\s[a-zA-Z_$][a-zA-Z0-9_$]*)\\s*\\("); // présume la présence du type de retour.
 
     private final Pattern patternMultiLineCommentonOneLine = Pattern.compile("/\\*.*\\*/");
 
@@ -83,8 +78,6 @@ public class LOC_Analyzer {
             "(?<case>\\s*case\\s)|" + "(?<catch>(\\s*|})catch(\\s|\\Q(\\E))" +
             ")", Pattern.CASE_INSENSITIVE);
 
-    private final Pattern multiLineClassDeclarationCheck = Pattern.compile("\\b(class|interface|enum)\\b");
-
     public LOC_Analyzer(ArrayList<String> fileLines) {
         this.fileLines = fileLines;
         analyzer();
@@ -94,9 +87,6 @@ public class LOC_Analyzer {
      * Méthode principale de la classe. Effectue ou appelle toutes les opération d'analyse des lignes.
      */
     private void analyzer(){
-
-        // on va ajouter les lignes qui se trouvent à l'extérieur des classes (commentaires, imports, etc) à toutes
-        // les classes se trouvant dans le fichier, à l'exception de la javaDoc plus ou moins correctement formée
 
         boolean outsideOfAClass = true;
         boolean outsideOfAMethod = true;
@@ -161,6 +151,28 @@ public class LOC_Analyzer {
                 }
             }
 
+            // Détection des commentaires
+            if (findSingleComment(line)) {
+                singleCommentFound = true;
+
+                // on enlève la partie commentée et on continue l'analyse sur ce qu'il reste.
+                line = line.replaceAll("//.*", "");
+            }
+
+            // tableau de 3 booléens, représentant : 0 - singleCommentFound, 1 - mlCommentFound, 2 - javaDocfound
+            boolean[] values = findMultiLineComment(line);
+
+            // On enlève les commentaires.
+            if(values[0]){
+                line = line.replaceAll("/\\*.*\\*/", "");
+            } else if(values[1] || values[2]){
+                line = line.replaceAll("/\\*.*", "");
+            }
+
+            singleCommentFound = singleCommentFound || values[0];
+            mlCommentFound = values[1];
+            javaDocfound = values[2];
+
             // Détection des classes et des méthodes
 
             // Gère les cas où la déclaration est séparée sur deux lignes. Pour l'instant, on juge que sur trois lignes
@@ -171,6 +183,7 @@ public class LOC_Analyzer {
             }
 
             Matcher multiLineClassCheck = multiLineClassDeclarationCheck.matcher(line);
+
             if (classMatcher(line, i) || (multiLineClassCheck.find() && classMatcher(checkIfOnMultipleLines, i))) {    //  <--- il y a des effets de bords ici.
                 outsideOfAClass = false;
                 currentClassIndex = listClasses.size() - 1;
@@ -187,27 +200,6 @@ public class LOC_Analyzer {
             } else if (thisMethode != null && i > thisMethode.getEnd()) {
                 outsideOfAMethod = true;
             }
-
-            // Détection des commentaires
-            if (findSingleComment(line)) {
-                singleCommentFound = true;
-                // on enlève la partie commentée et on continue l'analyse sur ce qu'il reste.
-                line = line.replaceAll("//.*", "");
-            }
-
-            // tableau de 3 booléens, représentant : 0 - singleCommentFound, 1 - mlCommentFound, 2 - javaDocfound
-            boolean[] values = findMultiLineComment(line);
-
-            // mise à jour des lignes, selon ce qui fut trouvé
-            if(values[0]){
-                line = line.replaceAll("/\\*.*\\*/", "");
-            } else if(values[1] || values[2]){
-                line = line.replaceAll("/\\*.*", "");
-            }
-
-            singleCommentFound = singleCommentFound || values[0];
-            mlCommentFound = values[1];
-            javaDocfound = values[2];
 
             // si on a trouvé des commentaires, CLOC++
             if(singleCommentFound || mlCommentFound || javaDocfound) {
@@ -276,15 +268,14 @@ public class LOC_Analyzer {
      * Agit par effet de bord.
      * @param line contenu de la ligne actuelle
      * @param currentLine numéro de la ligne actuelle
-     * @return vrai si on a trouvé une classe.
+     * @return le nom de la classe si on a trouvé une classe. String vide sinon.
      */
     private boolean classMatcher(String line, int currentLine){
         Matcher classMatcher = classPattern.matcher(line);
 
         if (classMatcher.find()) {
-            String className = classMatcher.group().replaceAll(".*(class|interface|enum)\\s+", "").split(" ")[0];
-            className = className.replaceAll("<.*", "");
-            int classEnd = findBalancedCurlyBracket(currentLine, fileLines);
+            String className = classMatcher.group("className");
+            int classEnd = FindBalancedSymbol.findInnerBalance(currentLine, fileLines, '{', '}');
 
             if(javadocLines > 0){
                 listClasses.add(new Classe(className, currentLine, classEnd, javadocLines));
@@ -312,13 +303,12 @@ public class LOC_Analyzer {
 
         Matcher methodMatcher = methodPattern.matcher(line);
         if (methodMatcher.find()) {
-            Matcher methodNameMatcher = methodNameExtracter.matcher(methodMatcher.group());
-            methodNameMatcher.find();
+
 
             // Extrait les types de la signature et les lie par "_"
             String tempSignature;
-            if(methodNameMatcher.group(2) != null) {
-                tempSignature = methodNameMatcher.group(2).replaceAll("\\s*[a-zA-Z_$][a-zA-Z0-9_$]*\\s*,\\s*", "_");
+            if(methodMatcher.group("signature") != null) {
+                tempSignature = methodMatcher.group("signature").replaceAll("\\s*[a-zA-Z_$][a-zA-Z0-9_$]*\\s*,\\s*", "_");
                 String[] temp = tempSignature.split("\\s+");
                 if (temp[0].isBlank()) {
                     tempSignature = "_"+temp[1];
@@ -328,10 +318,17 @@ public class LOC_Analyzer {
             }else {
                 tempSignature = "";
             }
-            currentMethod = methodNameMatcher.group("methodName")+tempSignature;
-            int methodEnd = findBalancedCurlyBracket(currentLine, fileLines);
+            currentMethod = methodMatcher.group("methodName")+tempSignature;
+            int methodEnd = FindBalancedSymbol.findInnerBalance(currentLine, fileLines, '{', '}');
+
             // on assume que la méthode trouvée se trouve dans la dernière classe trouvée.
-            Classe currentClass = listClasses.get(listClasses.size() - 1);
+            Classe currentClass;
+            try{
+                currentClass = listClasses.get(listClasses.size() - 1);
+            } catch (IndexOutOfBoundsException e) {
+                currentClass = classError;
+                listClasses.add(classError);
+            }
             if(javadocLines > 0){
                 currentClass.addMethod(currentMethod, new Methode(currentMethod, currentLine, methodEnd, javadocLines));
                 // on remet le compteur à 0 en assignant aussi les javadocs à la classe de la méthode.
@@ -340,47 +337,15 @@ public class LOC_Analyzer {
                     javadocLines--;
                 }
             } else {
-                listClasses.get(listClasses.size() - 1).addMethod(currentMethod, new Methode(currentMethod, currentLine, methodEnd, 0));
+                try{
+                    listClasses.get(listClasses.size() - 1).addMethod(currentMethod, new Methode(currentMethod, currentLine, methodEnd, 0));
+                } catch (IndexOutOfBoundsException e) {
+                    classError.addMethod(currentMethod, new Methode(currentMethod, currentLine, methodEnd, 0));
+                }
             }
             return true;
         }
         return false;
-    }
-
-    /**
-     * Vérifie si les '{' et les '}' sont bien balancée. Si oui, renvoie la ligne à laquelle le balancement s'est
-     * effectué. Sinon, renvoie -1.
-     * @param startAtLine Numéro de la ligne à laquelle a débuté l'analyse
-     * @param fileLines Ensemble des lignes de code du fichier.
-     * @return Numéro de la ligne où l'on a trouvé le balancement.
-     */
-    private int findBalancedCurlyBracket(int startAtLine, ArrayList<String> fileLines) {
-        int bracketCount = 0;
-        boolean started = false;
-        for(int i = startAtLine; i<fileLines.size();++i){
-            String line = fileLines.get(i);
-            if(line.isBlank()){
-                continue;
-            }
-            // on évite de détecter les '{' et '}' dans les strings ou les commentaires
-            line = line.replaceAll("\".*\"", "stringReplaced");
-            line = line.replaceAll("//.*", " ");
-            line = line.replaceAll(patternMultiLineCommentonOneLine.pattern(), " ");
-            line = line.replaceAll("/\\*.*", " ");
-
-            for(int j = 0; j<line.length(); j++){
-                if(line.charAt(j) == '{'){
-                    bracketCount++;
-                    started = true;
-                } else if(line.charAt(j) == '}'){
-                    bracketCount--;
-                }
-            }
-            if(bracketCount == 0 && started){
-                return i;
-            }
-        }
-        return -1;
     }
 
     private boolean findSingleComment(String line) {
